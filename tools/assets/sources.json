@@ -1,0 +1,32 @@
+[
+  {
+    "file": "upstream/font8x8/README",
+    "source": "https://raw.githubusercontent.com/dhepper/font8x8/8e279d2d864e79128e96188a6b9526cfa3fbfef9/README",
+    "sha256": "885cc022fa9c844695b364e77e6a18ab2be74678a181827f1ce893071205cb65"
+  },
+  {
+    "file": "upstream/font8x8/font8x8_basic.h",
+    "source": "https://raw.githubusercontent.com/dhepper/font8x8/8e279d2d864e79128e96188a6b9526cfa3fbfef9/font8x8_basic.h",
+    "sha256": "49d8df366296b203ca3211bc0672cf2a762135bf12710735b6292756b19dffd5"
+  },
+  {
+    "file": "upstream/font8x8/font8x8_ext_latin.h",
+    "source": "https://raw.githubusercontent.com/dhepper/font8x8/8e279d2d864e79128e96188a6b9526cfa3fbfef9/font8x8_ext_latin.h",
+    "sha256": "e0582e9a6b3f85dbb983c72d95c9a50c3547ad5e895d16ef167e20777d053f1b"
+  },
+  {
+    "file": "upstream/rpi-weather/LICENSE",
+    "source": "https://raw.githubusercontent.com/caternuson/rpi-weather/3a326b35514aa12a1b4ec4b3f7d61a6dba479712/LICENSE",
+    "sha256": "d6746ef9352ee5a57a30640aecde2c1fae80902a2fc74a9687ab4fcf81819c7b"
+  },
+  {
+    "file": "upstream/rpi-weather/led8x8icons.py",
+    "source": "https://raw.githubusercontent.com/caternuson/rpi-weather/3a326b35514aa12a1b4ec4b3f7d61a6dba479712/led8x8icons.py",
+    "sha256": "2453713b9a4548bf475f1eeae6817c7448f88d4e15c0088925c89742a94e9f27"
+  },
+  {
+    "file": "upstream/tom-thumb.bdf",
+    "source": "https://robey.lag.net/downloads/tom-thumb.bdf",
+    "sha256": "d2c8c15de5ca83fcaef7cadc06d8db578c082507fa3da8a8f698d026fdda2b14"
+  }
+]

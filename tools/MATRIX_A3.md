@@ -1,74 +1,88 @@
-# A3 matrix display tools
+# A3 32×8 matrix tools
 
-This branch extends the working A3 `0x59` frame format with a small 5×7 bitmap
-font, configurable 32×8 matrix wiring, and software color-order correction.
-No LED count, chip type, segment count or persistent color-order setting is
-changed. The frame keeps the existing 300-position configured capacity, with
-unused positions black. The physical matrix is described as 256 pixels.
+This feature branch supports bitmap text, icons, per-pixel calibration and RGB
+frames on the tested LEDnetWF0200A3 controller. These are standalone Python tools;
+they are not yet Home Assistant text or image entities.
 
-## Verified and pending
+## Hardware verification
 
-- A3 full-frame red/green changes are visually confirmed on the target hardware.
-- Original microphone parameters and hardware configuration are read back and
-  verified after automatic restoration.
-- Text rendering, coordinate mapping, padding, channel reordering and transport
-  framing pass offline tests.
-- The four-layout `1234` hardware calibration has been run; visual selection is
-  needed before declaring a wiring layout correct.
-- The reported order of the red/green test was reversed. `--channel-order GRB`
-  can compensate without changing device settings, but first check the channel
-  order visually. White calibration text avoids this ambiguity.
+The tested panel is 32 pixels wide and 8 high. The user visually confirmed white
+`1234` with `columns-serpentine` wiring, top-left origin, the first column going
+downward. A subsequent red → green → blue test confirmed ordinary RGB order.
+This does not establish compatibility with all A3 firmware or other panel sizes.
 
-## Setup
+The original drawing configuration was 30 pixels per segment × 10 segments.
+It repeats a short pattern across the panel. Independent drawing requires
+`--single-segment`, temporarily setting 256 pixels × 1 segment while preserving
+IC type, channel order, and the separate music configuration (30 × 10).
+This configuration write is persistent. The default behavior restores the full
+backup after each timed test; `--keep-drawing` retains the drawing session after
+success, allowing the next command to reuse it without rewriting the segments.
+The original backup is never overwritten. Ordinary test errors trigger recovery.
 
-Use a Python virtual environment with `bleak` installed. Keep the captured
-read-only backup outside the repository. See
-[`19_experimental_matrix_probe.md`](../protocol_docs/19_experimental_matrix_probe.md)
-for its schema and protocol evidence.
+Use an adequate power supply. Insufficient USB power caused flickering and
+connection failures during calibration; using a power bank resolved that issue.
 
-From the repository directory, run offline tests:
+## Bundled fonts and icons
+
+| Font | Cell / advance | Static characters in 32 pixels | Notes |
+| --- | --- | --- | --- |
+| `classic5x7` | 5×7 / 6 | 5 | Existing font; uppercase and basic punctuation |
+| `tom-thumb` | 3×6 / 4 | 8 | Mostly 3×5 active glyphs; case, Latin accents, ° and € |
+| `font8x8` | 8×8 / 8 | 4 | Larger letters; basic and extended Latin |
+
+The 35 selectable 8×8 bitmap entries include six weather patterns (`sunny`, `rain`,
+`cloud`, `showers`, `snow`, `storm`), digits, kanji digits, and diagnostic patterns.
+They can be displayed alone or to the left of text with a one-pixel gap.
+For example, an icon + `22.5°` fits using Tom Thumb. Unsupported characters and
+text that exceeds the available space are rejected before Bluetooth access.
+Scrolling and multicolor artwork are not implemented; the chosen RGB color
+applies to both icon and text.
+
+![Bundled bitmap assets](assets/preview.svg)
+
+Sources, licenses and attribution: [assets/NOTICE.md](assets/NOTICE.md).
+Original files and SHA-256 hashes are included; rendering is fully local and
+uses the Python standard library. Only Bluetooth access needs `bleak`.
+
+## Usage
+
+Run from the repository directory with Python and, for hardware use, `bleak`.
+Keep device backups and logs outside this public repository.
 
 ```bash
+python tools/matrix_probe.py --list-assets
+python tools/matrix_probe.py --font tom-thumb --icon sunny --text '22.5°'
+python tools/matrix_probe.py --font font8x8 --text 'Èéà°'
+python tools/matrix_gallery.py  # regenerate assets/preview.svg
 python -m unittest discover -s tools -p 'test_matrix*.py'
 ```
 
-Preview the bitmap in the terminal (no Bluetooth access):
+These preview commands never connect to Bluetooth. Display on the calibrated
+panel and retain drawing mode for subsequent tests:
 
 ```bash
-python tools/matrix_probe.py --backup /path/to/backup.json \
-  --variant a3-zero-tail --text '22.5°'
+python tools/matrix_probe.py --backup /path/to/original-backup.json \
+  --count 300 --single-segment --pause-mic --variant a3-zero-tail \
+  --layout columns-serpentine --font tom-thumb --icon sunny --text '22.5°' \
+  --seconds 5 --keep-drawing --log-dir /path/to/captures --apply
 ```
 
-Display a message for five seconds, then return to the original microphone effect:
+The displayed temperature in this example is literal text, not a sensor reading.
+`--color 255 0 0` selects red. All A3 RGB values are scaled to 20% intensity.
+Omit `--keep-drawing` for automatic restoration after a test starting from the
+original state. To finish a retained session, restore the saved sound mode:
 
 ```bash
-python tools/matrix_probe.py --backup /path/to/backup.json \
-  --count 300 --variant a3-zero-tail --pause-mic \
-  --text CIAO --layout rows-serpentine --seconds 5 \
-  --log-dir /path/to/captures --apply
+python tools/matrix_restore.py --backup /path/to/original-backup.json --retry-seconds 30
 ```
 
-The layout in that example is a candidate, not a verified default for every
-panel. To find the actual wiring, use `--text 1234 --layout-cycle`: each of
-`rows`, `rows-serpentine`, `columns`, `columns-serpentine` appears for the chosen
-number of seconds. If the readable text is upside down, repeat its layout with
-`--rotate` (180°).
+Recovery reconnects after configuration writes because the controller may
+restart Bluetooth. It verifies the exact original LED and microphone parameters
+and the original mode/effect. A process/host failure or prolonged connection
+loss can prevent recovery; keep the original backup available.
 
-Supported characters: A–Z (lowercase converted to uppercase), digits, spaces,
-`. : - + ° % /`. A fixed 32-pixel width fits at most five glyphs, including spaces
-and punctuation. Longer input is rejected before connecting; text is never
-silently cut. Scrolling is not implemented.
-
-Use `--color 255 0 0` for red text and `--channel-order GRB` only if the visual
-channel test establishes that red and green are swapped. RGB values in A3 frames
-are scaled to 20% intensity. Unused matrix pixels and capacity padding are black.
-
-The tool checks the saved microphone, mode and hardware configuration before
-writing. If someone has changed the settings since the backup it aborts. It
-restores the captured microphone settings after the timed display, including on
-ordinary exceptions, then compares the readback. A process/host failure or a lost
-Bluetooth connection can prevent restoration; the backup remains available.
-
-These are diagnostic tools on a feature branch, not a Home Assistant text entity.
-Once wire mapping and sparse text are visually confirmed, the same renderer and
-encoder can be connected to a Home Assistant service.
+Calibration helpers: `--pixel-indices 0 7 8 15 16 247 248 255 --seconds 3`,
+`--pixel-range 0 255`, and `--solid-cycle` (red, green, blue). Fast interval
+requests are best effort: Bluetooth transport can take longer, and write delivery
+alone is not proof that the physical panel displayed every frame.

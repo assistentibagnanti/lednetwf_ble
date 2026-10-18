@@ -1,10 +1,23 @@
 """Offline checks of captured query compatibility and RGB frame boundaries."""
 import unittest
 
-from matrix_smear import pixel_index, smear_payload, transport_packets
+from matrix_smear import pixel_index, smear_payload, transport_packets, segment_config
 
 
 class MatrixTransportTests(unittest.TestCase):
+    def test_segment_config_preserves_captured_music_and_hardware(self):
+        original = bytes.fromhex("0063001e000a01001e0ab4")
+        restore, original_expected = segment_config(original)
+        self.assertEqual(restore.hex(), "62001e000a01001e0af0a3")
+        self.assertEqual(original_expected, original)
+        temporary, expected = segment_config(original, 256, 1)
+        self.assertEqual(temporary.hex(), "620100000101001e0af07d")
+        self.assertEqual(expected.hex(), "00630100000101001e0a8e")
+        self.assertEqual(expected[6:10], original[6:10])
+        self.assertEqual(segment_config(expected)[0], temporary)
+        with self.assertRaises(ValueError):
+            segment_config(original[:-1] + b"\x00", 256, 1)
+
     def test_a3_layout_length_rgb_and_tail(self):
         for count in (1, 256, 300):
             frame = smear_payload([(255, 0, 0)] * count, variant="a3-zero-tail")

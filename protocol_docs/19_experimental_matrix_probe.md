@@ -1,9 +1,9 @@
 # Experimental A3 matrix probe
 
 This diagnostic investigates `0x59` smear frames on an A3 controller.
-Uniform red/green A3 frames and restoration are now hardware verified as described
-below. Individual pixel addressing, wiring, text and image support remain
-unverified. The diagnostic is not exposed through Home Assistant.
+The final calibrated result includes visually confirmed independent pixels,
+32×8 text, columns-serpentine wiring and RGB colors. Earlier failed attempts below
+are retained as experiment history; see the final section for the working setup. The diagnostic is not exposed through Home Assistant.
 
 References:
 
@@ -130,3 +130,40 @@ channel order must therefore be checked, rather than silently changing hardware
 color-order settings. A uniform frame does not establish individual addressability
 or 2D wiring. Next validation: sparse patterns and the 32×8 coordinate map before
 implementing text rendering. Do not generalize this result to every A3 firmware.
+
+
+## Calibrated independent drawing and text (2026-10-18)
+
+The original `0x63` response was `0063001e000a01001e0ab4`, describing normal
+30×10 segments with a separate 30×10 music configuration. A single white pixel
+was repeated at multiple physical locations. Temporarily using normal 256×1
+segments fixes independent drawing while retaining the music fields:
+
+- Temporary command: `620100000101001e0af07d`
+- Verified temporary response: `00630100000101001e0a8e`
+- Original restore command: `62001e000a01001e0af0a3`
+
+The temporary A3 frame has 256 RGB positions, 777 payload bytes, and the same
+A3 layout described above. Both 180-byte and 20-byte write fragmentation have
+been used successfully. The user confirmed index 0 top-left and index 1 directly
+below, then confirmed an eight-position boundary test through index 255.
+Finally, `1234` was perfectly legible with `columns-serpentine`, and the later
+three-color test confirmed RGB byte order. These later visual confirmations
+supersede the initial uncertain red/green ordering observation.
+
+The controller can restart Bluetooth after a `0x62` configuration write.
+`matrix_restore.py` uses fresh connections after such writes, then checks exact
+LED configuration, exact microphone parameters, and the saved mode/effect.
+Underpowered USB caused flicker and connection failures; the user resolved this
+by switching to a power bank. Successful recovery and subsequent tests were
+confirmed afterward.
+
+`--keep-drawing` deliberately retains the temporary configuration and paused
+microphone between tests, as requested by the user. A subsequent invocation
+accepts only the original state or the exact expected retained drawing state.
+Final restoration remains a separate explicit command in this workflow.
+
+See [MATRIX_A3.md](../tools/MATRIX_A3.md) for commands and the bundled fonts and
+8×8 icons. New assets have offline tests and a local preview; their appearance on
+the physical panel is not yet visually confirmed. The existing 5×7 font is
+visually confirmed. This branch is still not a Home Assistant display entity.

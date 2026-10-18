@@ -1,5 +1,6 @@
 """Small dependency-free 5x7 text renderer and matrix-to-wire mapping."""
 from matrix_smear import pixel_index
+from matrix_assets import BitmapFont, FONT_NAMES, load_font, load_icons
 
 # Five vertical columns per glyph, low bit at the top. Lowercase uses capitals.
 FONT = {
@@ -23,22 +24,51 @@ LAYOUTS = ("rows", "rows-serpentine", "columns", "columns-serpentine")
 CHANNEL_ORDERS = ("RGB", "RBG", "GRB", "GBR", "BRG", "BGR")
 
 
-def text_canvas(text, width=32, height=8):
+def text_canvas(text, width=32, height=8, font="classic5x7"):
     """Render centered static text; reject overflow instead of truncating it."""
-    text = text.upper()
-    if not text or height < 7 or width < 1:
-        raise ValueError("Text must be nonempty and canvas height at least 7")
-    if len(text) * 6 - 1 > width:
-        raise ValueError(f"Text is too wide ({len(text) * 6 - 1} pixels) for {width}; use at most {(width + 1) // 6} characters")
-    if any(char not in FONT for char in text):
-        raise ValueError("Unsupported character; use A-Z, 0-9, space, . : - + ° % /")
+    if font == "classic5x7":
+        text = text.upper()
+        glyphs = {char: tuple(sum(((column >> y) & 1) << x
+                                  for x, column in enumerate(bytes.fromhex(value)))
+                              for y in range(7)) for char, value in FONT.items()}
+        face = BitmapFont(5, 7, 6, glyphs)
+    else:
+        face = load_font(font)
+    if not text or height < face.height or width < 1:
+        raise ValueError(f"Text must be nonempty and canvas height at least {face.height}")
+    text_width = (len(text) - 1) * face.advance + face.width
+    if text_width > width:
+        raise ValueError(f"Text is too wide ({text_width} pixels) for {width} with {font}")
+    missing = sorted(set(text) - face.glyphs.keys())
+    if missing:
+        raise ValueError(f"Unsupported characters for {font}: {''.join(missing)!r}")
     canvas = [[False] * width for _ in range(height)]
-    left = (width - (len(text) * 6 - 1)) // 2
-    top = (height - 7) // 2
+    left = (width - text_width) // 2
+    top = (height - face.height) // 2
     for index, char in enumerate(text):
-        for x, column in enumerate(bytes.fromhex(FONT[char])):
-            for y in range(7):
-                canvas[top + y][left + index * 6 + x] = bool(column & (1 << y))
+        for y, row in enumerate(face.glyphs[char]):
+            for x in range(face.width):
+                canvas[top + y][left + index * face.advance + x] = bool(row & (1 << x))
+    return canvas
+
+
+def content_canvas(text=None, icon=None, width=32, height=8, font="classic5x7"):
+    """Combine an 8x8 icon at the left and centered text in the remaining area."""
+    if icon is None:
+        return text_canvas(text, width, height, font)
+    icons = load_icons()
+    if icon not in icons or width < 8 or height < 8:
+        raise ValueError("Unknown icon or canvas too small for an 8x8 icon")
+    canvas = [[False] * width for _ in range(height)]
+    left = 0 if text else (width - 8) // 2
+    top = (height - 8) // 2
+    for y, row in enumerate(icons[icon]):
+        for x in range(8):
+            canvas[top + y][left + x] = bool(row & (1 << x))
+    if text:
+        rendered = text_canvas(text, width - 9, height, font)
+        for y, row in enumerate(rendered):
+            canvas[y][9:] = row
     return canvas
 
 

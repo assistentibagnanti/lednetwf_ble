@@ -1,9 +1,32 @@
-"""Experimental 0x59 RGB encoder; uniform A3 frames verified on one target.
+"""A3 0x59 RGB framing, segment configuration and matrix wire mappings.
 
 Protocol reference: 8none1/zengge_lednetwf README, Header and Smear sections.
-No LED configuration or persistent-storage commands are generated here.
+segment_config builds persistent configuration commands; callers handle recovery.
 """
 from __future__ import annotations
+
+
+def segment_config(response, pixels_per_segment=None, segments=None):
+    """Build A3 0x62 from a validated 0x63 capture, preserving music/IC/order.
+
+    Returns (command, expected readback). This command persists configuration;
+    callers must restore the original command even after a failed experiment.
+    """
+    if len(response) != 11 or response[:2] != b"\x00\x63" or sum(response[:-1]) & 255 != response[-1]:
+        raise ValueError("Expected complete checksummed A3 IC configuration")
+    expected = bytearray(response)
+    if pixels_per_segment is not None:
+        if not 1 <= pixels_per_segment <= 300:
+            raise ValueError("Pixels per segment must be 1..300")
+        expected[2:4] = pixels_per_segment.to_bytes(2, "big")
+    if segments is not None:
+        if not 1 <= segments <= 64:
+            raise ValueError("Segment count must be 1..64")
+        expected[4:6] = segments.to_bytes(2, "big")
+    expected[-1] = sum(expected[:-1]) & 255
+    command = bytearray([0x62]) + expected[2:10] + bytes([0xF0])
+    command.append(sum(command) & 255)
+    return bytes(command), bytes(expected)
 
 
 def smear_payload(pixels, brightness=20, variant="legacy"):
@@ -39,7 +62,7 @@ def transport_packets(payload, sequence, max_write=180, command_id=0x0B):
 
     First header: 8 bytes; continuation header: 5 bytes. The command ID is
     included only in the first fragment. This follows the retired project's
-    Header section; fragmented A3 smear frames are not hardware validated yet.
+    Header section; fragmented A3 frames are verified on the calibrated target.
     """
     if not payload or len(payload) > 65535 or not 9 <= max_write <= 255:
         raise ValueError("Invalid payload or ATT write limit")
