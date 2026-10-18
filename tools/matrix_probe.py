@@ -107,7 +107,11 @@ async def apply(args, backup, payload):
             paused_mic[-1] = sum(paused_mic[:-1]) & 255
             command, expected = segment_config(config, frame_count, 1)
             continuing = (args.keep_drawing and before_config == expected
-                          and before_mic == bytes(paused_mic)
+                          # Static 0x59 drawing changes the shared effect byte
+                          # to 1; all other microphone parameters must match.
+                          and before_mic[:3] == bytes(paused_mic[:3])
+                          and before_mic[3] in (paused_mic[3], 1)
+                          and before_mic[4:-1] == bytes(paused_mic[4:-1])
                           and before_state[:3] == state[:3] and before_state[3] == 0x24)
             original = (before_mic == mic and before_state[:5] == state[:5]
                         and before_config == config)
