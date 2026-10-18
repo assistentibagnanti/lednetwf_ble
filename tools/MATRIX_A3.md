@@ -59,6 +59,30 @@ uses the Python standard library. Only Bluetooth access needs `bleak`.
 
 ## Usage
 
+### Local control panel
+
+Start a local web interface using the same virtual environment with `bleak`:
+
+```bash
+python tools/matrix_control.py --backup /path/to/original-backup.json
+```
+
+Open http://127.0.0.1:8765 on the same computer. Select text, font, icon, colors,
+and full-height rendering. Preview updates without Bluetooth access; the panel
+changes only after pressing **Invia al pannello**. Screens stay displayed until
+the next send or explicit **Torna alla modalità sonora** action. The latter
+restores and verifies the original captured configuration. Closing the page or
+stopping the server does not automatically restore the panel.
+
+The interface serializes hardware commands. It listens on localhost only, uses
+no external services, and saves the last editor content in browser local storage.
+The example temperature and clock presets are fixed demo text, not live data.
+Logs default to `matrix-ui-logs` beside the private backup. Keep them outside the
+public repository. Use `--preview-only` without a backup to try the interface
+without enabling any Bluetooth command.
+
+### Command line
+
 Run from the repository directory with Python and, for hardware use, `bleak`.
 Keep device backups and logs outside this public repository.
 

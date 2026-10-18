@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="it">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pannello LED · 32×8</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;color:#edf5fb;background:#101721}
+*{box-sizing:border-box}body{margin:0}main{max-width:920px;padding:36px 22px;margin:auto}
+h1{font-size:30px;letter-spacing:-1px;margin:0 0 6px}p{color:#aabacb;line-height:1.5}
+.preview,.controls{background:#192431;border:1px solid #304052;border-radius:18px;padding:22px;margin:24px 0}
+#pixels{display:grid;grid-template-columns:repeat(32,1fr);gap:3px;aspect-ratio:4;background:#080c12;padding:12px;border-radius:12px}
+.pixel{border-radius:35%;background:#17212d;aspect-ratio:1}
+.caption{font-size:13px;margin-bottom:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+label{display:block;color:#bbcad8;font-size:14px;margin-bottom:8px}input[type=text],select{width:100%;font:inherit;color:inherit;background:#101923;border:1px solid #435367;border-radius:9px;padding:11px}
+.full{grid-column:1/-1}input[type=color]{width:60px;height:38px;border:0;background:none;cursor:pointer}
+.color-row{display:flex;align-items:center;gap:10px;min-height:40px}.color-row label{margin:0}input[type=checkbox]{accent-color:#7fe9b3;width:17px;height:17px}
+.buttons,.presets{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}button{font:inherit;cursor:pointer;background:#26384a;color:#eef7fc;border:1px solid #496075;padding:11px 16px;border-radius:9px}
+button.primary{background:#91efbd;color:#10271c;border-color:#91efbd;font-weight:650}button:disabled{opacity:.45;cursor:wait}.presets button{font-size:13px;padding:8px 11px}
+#validation{color:#ffbfa7;min-height:22px;margin:14px 0 0}#status{line-height:1.5;white-space:pre-wrap}small{color:#9eafc0}
+@media(max-width:580px){.grid{grid-template-columns:1fr}main{padding:22px 12px}.preview,.controls{padding:15px}#pixels{gap:2px;padding:8px}h1{font-size:26px}}
+</style>
+<main>
+<h1>Il tuo pannello LED <small>32×8</small></h1>
+<p>Componi una schermata, guardala in anteprima e inviala al pannello.</p>
+<section class="preview" aria-label="Anteprima del pannello"><div id="pixels"></div>
+<p class="caption">Anteprima dei pixel. La luminosità reale dipende dal pannello.</p></section>
+<section class="controls"><div class="grid">
+<div class="full"><label for="text">Scritta</label><input id="text" type="text" value="CIAO" maxlength="128" autocomplete="off" spellcheck="false"></div>
+<div><label for="font">Font</label><select id="font"></select></div>
+<div><label for="icon">Icona</label><select id="icon"></select></div>
+<div><label for="color">Colore della scritta</label><div class="color-row"><input id="color" type="color" value="#00ff50"><span id="colorValue"></span></div></div>
+<div><label for="iconColor">Colore dell’icona</label><div class="color-row"><input id="iconColor" type="color" value="#ffffff"><label><input id="overrideIcon" type="checkbox"> Colore unico</label></div><small>Disattivato: le icone a colori mantengono la propria palette.</small></div>
+<div class="full"><label class="color-row"><input id="fill" type="checkbox" checked> Scritta a tutta altezza</label></div>
+</div>
+<div class="presets" aria-label="Esempi"><button data-preset="sun">Sole e temperatura</button><button data-preset="cloud">Nuvola e CIAO</button><button data-preset="time">Orologio di esempio</button><button data-preset="word">Solo scritta</button></div>
+<p id="validation" role="alert"></p>
+<div class="buttons"><button id="send" class="primary" disabled>Invia al pannello</button><button id="restore" disabled>Torna alla modalità sonora</button></div>
+<p class="caption">La schermata resta accesa. Chiudere questa pagina non ripristina la modalità sonora.</p>
+</section>
+<p id="status" role="status" aria-live="polite">Caricamento…</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const dots=Array.from({length:256},()=>{const dot=document.createElement('div');dot.className='pixel';$('pixels').append(dot);return dot});
+const names={'classic5x7':'Classico · 5 caratteri','tom-thumb':'Stretto · 8 caratteri','font8x8':'Grande · 4 caratteri','spleen5x8':'Spleen · 6 caratteri','digits3x8':'Numeri 3×8 · 8 caratteri'};
+const iconNames={'color-sun':'Sole giallo e bianco','color-cloud':'Nuvola bianca e azzurra','color-rain':'Pioggia bianca e azzurra','color-moon':'Luna chiara'};
+let valid=false,busy=false,previewOnly=false,previewId=0,timer;
+function content(){return {text:$('text').value,font:$('font').value,icon:$('icon').value||null,color:$('color').value,icon_color:$('overrideIcon').checked?$('iconColor').value:null,fill_height:$('fill').checked}}
+function buttons(){$('send').disabled=!valid||busy||previewOnly;$('restore').disabled=busy||previewOnly;$('iconColor').disabled=!$('overrideIcon').checked;$('colorValue').textContent=$('color').value.toUpperCase()}
+async function api(path,data){const res=await fetch('/api/'+path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const result=await res.json();if(!res.ok)throw Error(result.error||'Errore');return result}
+async function preview(){const id=++previewId;valid=false;buttons();try{const data=content();const result=await api('preview',data);if(id!==previewId)return;result.pixels.flat().forEach((rgb,i)=>{dots[i].style.background=rgb.some(Boolean)?`rgb(${rgb.join(',')})`:'#17212d'});valid=true;$('validation').textContent='';localStorage.setItem('led-matrix-content',JSON.stringify(data))}catch(error){if(id!==previewId)return;$('validation').textContent=error.message;dots.forEach(dot=>dot.style.background='#17212d')}buttons()}
+function apply(data){$('text').value=data.text;$('font').value=data.font;$('icon').value=data.icon||'';$('color').value=data.color;$('fill').checked=data.fill_height;$('overrideIcon').checked=!!data.icon_color;if(data.icon_color)$('iconColor').value=data.icon_color;preview()}
+async function status(){try{const state=await api('status');busy=state.busy;$('status').textContent=(previewOnly?'Modalità anteprima: invio Bluetooth disabilitato.\n':'')+state.message+(state.error?'\n'+state.error:'');buttons()}catch(error){busy=true;buttons();$('status').textContent='Il programma locale non risponde. Riavvialo e ricarica la pagina.'}}
+async function action(name){busy=true;buttons();try{await api(name,name==='display'?content():{});await status()}catch(error){$('status').textContent=error.message;busy=false;buttons()}}
+$('send').onclick=()=>action('display');$('restore').onclick=()=>action('restore');
+const presets={sun:{text:'22.5°',font:'digits3x8',icon:'color-sun',color:'#00c8ff',fill_height:true,icon_color:null},cloud:{text:'CIAO',font:'spleen5x8',icon:'color-cloud',color:'#00ff50',fill_height:true,icon_color:null},time:{text:'12:34:56',font:'digits3x8',icon:null,color:'#ff80e5',fill_height:true,icon_color:null},word:{text:'SALVE',font:'spleen5x8',icon:null,color:'#ffbb55',fill_height:true,icon_color:null}};
+document.querySelectorAll('[data-preset]').forEach(button=>button.onclick=()=>apply(presets[button.dataset.preset]));
+document.querySelectorAll('input,select').forEach(input=>input.addEventListener('input',()=>{valid=false;previewId++;buttons();clearTimeout(timer);timer=setTimeout(preview,180)}));
+(async()=>{try{const catalog=await api('catalog');previewOnly=catalog.preview_only;catalog.fonts.forEach(font=>$('font').add(new Option(names[font]||font,font)));$('icon').add(new Option('Nessuna icona',''));catalog.icons.sort((a,b)=>Number(!a.startsWith('color-'))-Number(!b.startsWith('color-'))||a.localeCompare(b)).forEach(icon=>$('icon').add(new Option(iconNames[icon]||icon,icon)));let saved;try{saved=JSON.parse(localStorage.getItem('led-matrix-content'))}catch{}apply(saved||presets.cloud);await status();setInterval(status,1200)}catch(error){$('status').textContent=error.message}})();
+</script>
+</html>

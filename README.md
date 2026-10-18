@@ -2,6 +2,11 @@
 
 Home Assistant custom integration for LEDnetWF devices which use the Zengge Android or iPhone app. WIP
 
+This feature branch also includes a [local 32×8 A3 matrix control panel](tools/MATRIX_A3.md#local-control-panel)
+with bitmap fonts, color icons, live preview, and explicit restoration of the
+saved microphone effect. These standalone tools are separate from Home Assistant
+entities and require calibration for the target panel.
+
 ## Important note for upgraders
 
 If, after upgrading, your devices suddenly don't work, please delete them via the UI and re-add them again.  There are a number of new features which require
