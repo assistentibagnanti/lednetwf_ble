@@ -87,3 +87,21 @@ vendor app on the actual A3. Avoid further undocumented command guesses.
 The diagnostic offers `--solid-cycle --seconds 5` for visibility and
 `--pause-mic` to test the prerequisite used by the integration's color/effect
 methods. Both options retain automatic restoration and readback checks.
+
+## A3-specific evidence found in upstream issue comments
+
+https://github.com/8none1/zengge_lednetwf/issues/6#issuecomment-1902776898
+
+On 2024-01-21, contributor nummacway reported that controllers advertising as
+LEDnetWF0200A3 use a different `0x59` layout. There is an extra two-byte word
+before RGB data, matching transport header bytes 4–5. The tail has five bytes
+before its checksum: two unknown bytes, mode, speed, direction. The original
+issue reports smear failing on firmware `56.00A3.2D.02,V3` while other effects
+work. This is directly relevant to the negative tests above.
+
+The tool currently implements the legacy layout, **not this A3 layout**. The
+layout mismatch is a plausible explanation, not an experimentally proven cause.
+The comment does not supply the two unknown tail values or a complete frame;
+do not silently substitute the legacy brightness/speed values. A complete A3
+capture or an independently verified implementation is still needed. No A3-layout
+commands have been transmitted as part of this research.
