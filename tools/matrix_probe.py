@@ -39,6 +39,8 @@ async def apply(args, backup, payload):
     sequence = 0
     report = {"address": backup["address"], "backup": str(args.backup.resolve()),
               "experimental": True, "pixel": args.pixel, "frame_pixels": args.count,
+              "solid_cycle": args.solid_cycle,
+              "pause_mic": args.pause_mic,
               "events": [], "restored": False, "pixel_control_confirmed": False}
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     log_path = args.log_dir / f"matrix-probe-{stamp}.json"
@@ -93,11 +95,31 @@ async def apply(args, backup, payload):
             if (config[2] << 8 | config[3]) * config[5] != args.count:
                 raise RuntimeError("Frame size must match existing LED configuration")
             try:
-                print(f"Experimental smear: only wire pixel {args.pixel} is red for {args.seconds}s", flush=True)
-                await send(client, payload, 0x0B)
-                await asyncio.sleep(0.5)
-                report["state_during_probe"] = (await query(client, "818a8b96", b"\x81")).hex()
-                await asyncio.sleep(args.seconds)
+                if args.pause_mic:
+                    pause = bytearray(restore)
+                    pause[1] = 0
+                    pause[-1] = sum(pause[:-1]) & 255
+                    print("Temporarily disabling microphone before drawing", flush=True)
+                    await send(client, pause, 0x0B)
+                    await asyncio.sleep(0.5)
+                    paused = await query(client, "720072", b"\x72")
+                    report["mic_pause_verified"] = paused[1] == 0 and paused[2:-1] == mic[2:-1]
+                    save()
+                    if not report["mic_pause_verified"]:
+                        raise RuntimeError("Microphone pause not confirmed; aborting draw")
+                if args.solid_cycle:
+                    frames = [("all red", smear_payload([(255, 0, 0)] * args.count)),
+                              ("all green", smear_payload([(0, 255, 0)] * args.count))]
+                else:
+                    frames = [(f"wire pixel {args.pixel} red", payload)]
+                report["states_during_probe"] = []
+                for label, frame in frames:
+                    print(f"Experimental smear: {label} for {args.seconds}s", flush=True)
+                    await send(client, frame, 0x0B)
+                    await asyncio.sleep(args.seconds)
+                    state_during = await query(client, "818a8b96", b"\x81")
+                    report["states_during_probe"].append({"frame": label, "state": state_during.hex()})
+                    save()
             finally:
                 print("Restoring original microphone configuration", flush=True)
                 # Always attempt a restore after transmission, including failed probes.
@@ -127,6 +149,8 @@ def main():
     parser.add_argument("--count", type=int, default=300, help="Existing wire capacity, not matrix area; no settings are changed")
     parser.add_argument("--pixel", type=int, default=0)
     parser.add_argument("--seconds", type=float, default=4)
+    parser.add_argument("--solid-cycle", action="store_true", help="Try all red then all green for --seconds each, then restore")
+    parser.add_argument("--pause-mic", action="store_true", help="Temporarily disable the captured microphone configuration before drawing")
     parser.add_argument("--log-dir", type=Path, default=Path.cwd())
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()

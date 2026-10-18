@@ -67,3 +67,23 @@ The exact microphone parameters, operating mode/effect and LED configuration wer
 successfully restored and read back. Do not infer that packet delivery establishes
 compatibility. Next evidence should be an app capture of DIY drawing on this A3,
 or a verified A3-specific command format, before trying additional opcodes.
+
+## Follow-up full-frame attempts
+
+Two further attempts sent 300 RGB positions all red for five seconds, then all
+green for five seconds. The first left the microphone enabled. The second first
+disabled it by changing only the enable byte in the captured microphone settings;
+a readback confirmed the microphone was disabled before sending any smear data.
+The user confirmed **no visible color change in either attempt**. The reported
+mode stayed `0x62`. All captured microphone parameters and LED settings matched
+the original backup after restoration in both attempts.
+
+Thus this legacy smear sequence has failed on the tested A3. This is not evidence
+that all per-pixel control is impossible: the opcode, A3 data layout, or transport
+fragmentation may differ. Do not advertise text or drawing support based on this
+tool. The next useful evidence is a capture of DIY drawing from a compatible
+vendor app on the actual A3. Avoid further undocumented command guesses.
+
+The diagnostic offers `--solid-cycle --seconds 5` for visibility and
+`--pause-mic` to test the prerequisite used by the integration's color/effect
+methods. Both options retain automatic restoration and readback checks.
