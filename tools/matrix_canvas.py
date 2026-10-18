@@ -1,6 +1,6 @@
 """Small dependency-free 5x7 text renderer and matrix-to-wire mapping."""
 from matrix_smear import pixel_index
-from matrix_assets import BitmapFont, FONT_NAMES, load_font, load_icons
+from matrix_assets import BitmapFont, FONT_NAMES, load_font, load_icons, load_color_icons
 
 # Five vertical columns per glyph, low bit at the top. Lowercase uses capitals.
 FONT = {
@@ -24,7 +24,7 @@ LAYOUTS = ("rows", "rows-serpentine", "columns", "columns-serpentine")
 CHANNEL_ORDERS = ("RGB", "RBG", "GRB", "GBR", "BRG", "BGR")
 
 
-def text_canvas(text, width=32, height=8, font="classic5x7"):
+def text_canvas(text, width=32, height=8, font="classic5x7", fill_height=False):
     """Render centered static text; reject overflow instead of truncating it."""
     if font == "classic5x7":
         text = text.upper()
@@ -49,13 +49,18 @@ def text_canvas(text, width=32, height=8, font="classic5x7"):
         for y, row in enumerate(face.glyphs[char]):
             for x in range(face.width):
                 canvas[top + y][left + index * face.advance + x] = bool(row & (1 << x))
+    if fill_height:
+        occupied = [y for y, row in enumerate(canvas) if any(row)]
+        if occupied:
+            start, end = occupied[0], occupied[-1] + 1
+            canvas = [canvas[start + y * (end - start) // height][:] for y in range(height)]
     return canvas
 
 
-def content_canvas(text=None, icon=None, width=32, height=8, font="classic5x7"):
+def content_canvas(text=None, icon=None, width=32, height=8, font="classic5x7", fill_height=False):
     """Combine an 8x8 icon at the left and centered text in the remaining area."""
     if icon is None:
-        return text_canvas(text, width, height, font)
+        return text_canvas(text, width, height, font, fill_height)
     icons = load_icons()
     if icon not in icons or width < 8 or height < 8:
         raise ValueError("Unknown icon or canvas too small for an 8x8 icon")
@@ -66,9 +71,26 @@ def content_canvas(text=None, icon=None, width=32, height=8, font="classic5x7"):
         for x in range(8):
             canvas[top + y][left + x] = bool(row & (1 << x))
     if text:
-        rendered = text_canvas(text, width - 9, height, font)
+        rendered = text_canvas(text, width - 9, height, font, fill_height)
         for y, row in enumerate(rendered):
             canvas[y][9:] = row
+    return canvas
+
+
+def rgb_content_canvas(text=None, icon=None, width=32, height=8, font="classic5x7",
+                       text_color=(255, 255, 255), icon_color=None, fill_height=False):
+    for color in (text_color, icon_color):
+        if color is not None and (len(color) != 3 or any(type(c) is not int or not 0 <= c <= 255 for c in color)):
+            raise ValueError("Colors must contain three RGB bytes")
+    mask = content_canvas(text, icon, width, height, font, fill_height)
+    canvas = [[tuple(text_color) if active else (0, 0, 0) for active in row] for row in mask]
+    if icon:
+        left, top = (0 if text else (width - 8) // 2), (height - 8) // 2
+        image = load_color_icons().get(icon) if icon_color is None else None
+        for y in range(8):
+            for x in range(8):
+                canvas[top + y][left + x] = (image[y][x] if image is not None else
+                    tuple(icon_color or text_color) if mask[top + y][left + x] else (0, 0, 0))
     return canvas
 
 
@@ -92,11 +114,17 @@ def wire_pixels(canvas, count=300, layout="rows-serpentine", color=(255, 255, 25
     pixels = [(0, 0, 0)] * count
     for y, row in enumerate(canvas):
         for x, active in enumerate(row):
-            if active:
+            if isinstance(active, (tuple, list)):
+                if len(active) != 3 or any(type(c) is not int or not 0 <= c <= 255 for c in active):
+                    raise ValueError("RGB canvas pixels must contain three bytes")
+                value = tuple(active["RGB".index(c)] for c in channel_order)
+            else:
+                value = encoded if active else (0, 0, 0)
+            if any(value):
                 px, py = (width - 1 - x, height - 1 - y) if rotate else (x, y)
-                pixels[pixel_index(px, py, width, height, layout)] = encoded
+                pixels[pixel_index(px, py, width, height, layout)] = value
     return pixels
 
 
 def ascii_preview(canvas):
-    return "\n".join("".join("##" if p else "  " for p in row) for row in canvas)
+    return "\n".join("".join("##" if (any(p) if isinstance(p, (tuple, list)) else p) else "  " for p in row) for row in canvas)

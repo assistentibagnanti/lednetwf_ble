@@ -28,5 +28,50 @@
     "file": "upstream/tom-thumb.bdf",
     "source": "https://robey.lag.net/downloads/tom-thumb.bdf",
     "sha256": "d2c8c15de5ca83fcaef7cadc06d8db578c082507fa3da8a8f698d026fdda2b14"
+  },
+  {
+    "file": "upstream/spleen/LICENSE",
+    "source": "https://raw.githubusercontent.com/fcambus/spleen/5116f8eac7f65da2cfa169626ec43b5d041665fe/LICENSE",
+    "sha256": "f33fe8679d5b2abecc4f1313ce6c6bfa58262964de5f7bca146596a7318047af"
+  },
+  {
+    "file": "upstream/spleen/spleen-5x8.bdf",
+    "source": "https://raw.githubusercontent.com/fcambus/spleen/5116f8eac7f65da2cfa169626ec43b5d041665fe/spleen-5x8.bdf",
+    "sha256": "40488184d075d0c752cdd239b441c5ece51e50b353156f2496c756c384ab01cb"
+  },
+  {
+    "file": "upstream/EspruinoDocs/LICENSE",
+    "source": "https://raw.githubusercontent.com/espruino/EspruinoDocs/514589004b76cd85b5bccc38054912dbc80b78f7/LICENSE",
+    "sha256": "2527f0a93d756735644b2df58720dad3a88a00effb8d4c07075eb695869c615d"
+  },
+  {
+    "file": "upstream/EspruinoDocs/modules/Font4x8Numeric.js",
+    "source": "https://raw.githubusercontent.com/espruino/EspruinoDocs/514589004b76cd85b5bccc38054912dbc80b78f7/modules/Font4x8Numeric.js",
+    "sha256": "321a9ccc34a16c6f8a36dab56bd14b2b1b7d19d1884e5d11ce239f024606d5f5"
+  },
+  {
+    "file": "upstream/open-iconic/ICON-LICENSE",
+    "source": "https://raw.githubusercontent.com/iconic/open-iconic/1d1e8885c5031874b32f4e480e371ce2b1c24144/ICON-LICENSE",
+    "sha256": "b3f22ce84cba8df34011f5d420ec87ad75d7f91700f21cdc8589ee388594325e"
+  },
+  {
+    "file": "upstream/open-iconic/png/sun.png",
+    "source": "https://raw.githubusercontent.com/iconic/open-iconic/1d1e8885c5031874b32f4e480e371ce2b1c24144/png/sun.png",
+    "sha256": "bf292b2ab81a506662b5842774143f8a447a3513ba1581d8843ab4974d4b5980"
+  },
+  {
+    "file": "upstream/open-iconic/png/cloud.png",
+    "source": "https://raw.githubusercontent.com/iconic/open-iconic/1d1e8885c5031874b32f4e480e371ce2b1c24144/png/cloud.png",
+    "sha256": "c08d9064b14897bf2c1268347deb5a83164318e35bc1cec072362996c0354143"
+  },
+  {
+    "file": "upstream/open-iconic/png/rain.png",
+    "source": "https://raw.githubusercontent.com/iconic/open-iconic/1d1e8885c5031874b32f4e480e371ce2b1c24144/png/rain.png",
+    "sha256": "98e07812b3f8d97b3f71c46c57ed33bdfc053ee05a938e2f920b65640823a40e"
+  },
+  {
+    "file": "upstream/open-iconic/png/moon.png",
+    "source": "https://raw.githubusercontent.com/iconic/open-iconic/1d1e8885c5031874b32f4e480e371ce2b1c24144/png/moon.png",
+    "sha256": "45ddf4954ae562454c81b0ad5a61c0bd71670455c36b27b59bfc5f6a09c27b24"
   }
 ]

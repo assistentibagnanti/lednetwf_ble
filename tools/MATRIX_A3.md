@@ -30,14 +30,26 @@ connection failures during calibration; using a power bank resolved that issue.
 | `classic5x7` | 5×7 / 6 | 5 | Existing font; uppercase and basic punctuation |
 | `tom-thumb` | 3×6 / 4 | 8 | Mostly 3×5 active glyphs; case, Latin accents, ° and € |
 | `font8x8` | 8×8 / 8 | 4 | Larger letters; basic and extended Latin |
+| `spleen5x8` | 5×8 / 5 | 6 | Narrow ASCII letters, including a spacing column |
+| `digits3x8` | 3×8 / 4 | 8 | Full-height digits; space, . : - and ° added |
 
-The 35 selectable 8×8 bitmap entries include six weather patterns (`sunny`, `rain`,
+The 35 original selectable 8×8 bitmap entries include six weather patterns (`sunny`, `rain`,
 `cloud`, `showers`, `snow`, `storm`), digits, kanji digits, and diagnostic patterns.
 They can be displayed alone or to the left of text with a one-pixel gap.
 For example, an icon + `22.5°` fits using Tom Thumb. Unsupported characters and
 text that exceeds the available space are rejected before Bluetooth access.
-Scrolling and multicolor artwork are not implemented; the chosen RGB color
-applies to both icon and text.
+There are also four RGB alternatives: `color-sun`, `color-cloud`, `color-rain`,
+and `color-moon`. These retain their own palettes, independently of text color.
+The sun has yellow rays and a white center; rain has a white cloud and blue drops.
+`--color R G B` sets text color, while `--icon-color R G B` optionally replaces
+an icon's palette with a uniform tint. Scrolling is not implemented.
+
+`--fill-height` crops only empty rows above/below the rendered text and expands
+the occupied rows to the full canvas height using nearest-pixel sampling. This
+is an explicit software transformation, not a claim that a source font's capital
+letters natively occupy eight rows. It also allows narrow Tom Thumb letters to
+use all eight rows while retaining their three-pixel width. All-space input stays
+blank. Icon geometry and palettes are unaffected.
 
 ![Bundled bitmap assets](assets/preview.svg)
 
@@ -54,6 +66,8 @@ Keep device backups and logs outside this public repository.
 python tools/matrix_probe.py --list-assets
 python tools/matrix_probe.py --font tom-thumb --icon sunny --text '22.5°'
 python tools/matrix_probe.py --font font8x8 --text 'Èéà°'
+python tools/matrix_probe.py --font digits3x8 --icon color-sun --text '22.5°' --color 0 200 255
+python tools/matrix_probe.py --font spleen5x8 --fill-height --icon color-cloud --text CIAO --color 0 255 80
 python tools/matrix_gallery.py  # regenerate assets/preview.svg
 python -m unittest discover -s tools -p 'test_matrix*.py'
 ```
@@ -64,7 +78,8 @@ panel and retain drawing mode for subsequent tests:
 ```bash
 python tools/matrix_probe.py --backup /path/to/original-backup.json \
   --count 300 --single-segment --pause-mic --variant a3-zero-tail \
-  --layout columns-serpentine --font tom-thumb --icon sunny --text '22.5°' \
+  --layout columns-serpentine --font digits3x8 --icon color-sun --text '22.5°' \
+  --color 0 200 255 \
   --seconds 5 --keep-drawing --log-dir /path/to/captures --apply
 ```
 

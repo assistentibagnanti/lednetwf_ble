@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from matrix_smear import smear_payload, transport_packets, segment_config
-from matrix_canvas import LAYOUTS, CHANNEL_ORDERS, content_canvas, wire_pixels, ascii_preview
+from matrix_canvas import LAYOUTS, CHANNEL_ORDERS, rgb_content_canvas, wire_pixels, ascii_preview
 from matrix_assets import FONT_NAMES, load_icons
 
 WRITE = "0000ff01-0000-1000-8000-00805f9b34fb"
@@ -53,6 +53,7 @@ async def apply(args, backup, payload):
               "variant": args.variant,
               "text": args.text, "layout": args.layout, "layout_cycle": args.layout_cycle,
               "font": args.font, "icon": args.icon,
+              "icon_color": args.icon_color, "fill_height": args.fill_height,
               "channel_order": args.channel_order, "rotate": args.rotate,
               "single_segment": args.single_segment, "drawing_frame_pixels": frame_count,
               "events": [], "restored": False, "pixel_control_confirmed": False}
@@ -155,8 +156,9 @@ async def apply(args, backup, payload):
                         pixels[index] = color
                         frames.append((f"wire pixel {index}", smear_payload(pixels, variant=args.variant)))
                 elif args.layout_cycle or args.text is not None or args.icon is not None:
-                    canvas = content_canvas(args.text or ("1234" if args.layout_cycle else None),
-                                            args.icon, args.width, args.height, args.font)
+                    canvas = rgb_content_canvas(args.text or ("1234" if args.layout_cycle else None),
+                                                args.icon, args.width, args.height, args.font,
+                                                args.color, args.icon_color, args.fill_height)
                     layouts = LAYOUTS if args.layout_cycle else (args.layout,)
                     frames = [(f"{layout}: {args.text or args.icon or '1234'}", smear_payload(
                         wire_pixels(canvas, frame_count, layout, args.color,
@@ -241,6 +243,9 @@ def main():
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--list-assets", action="store_true", help="List local fonts and icons without Bluetooth")
     parser.add_argument("--font", choices=FONT_NAMES, default="classic5x7")
+    parser.add_argument("--fill-height", action="store_true", help="Expand occupied text rows to full canvas height with nearest-pixel sampling")
+    parser.add_argument("--icon-color", nargs=3, type=int, metavar=("R", "G", "B"),
+                        help="Independent icon tint; otherwise color-* sprites keep their own palette")
     parser.add_argument("--icon", choices=tuple(load_icons()), help="8x8 icon, alone or to the left of text")
     parser.add_argument("--count", type=int, default=300, help="Original configured wire capacity, not matrix area")
     parser.add_argument("--pixel", type=int, default=0)
@@ -297,8 +302,9 @@ def main():
         parser.error("Choose either text/layout test or solid colors")
     try:
         if args.text is not None or args.layout_cycle or args.icon is not None:
-            canvas = content_canvas(args.text or ("1234" if args.layout_cycle else None),
-                                    args.icon, args.width, args.height, args.font)
+            canvas = rgb_content_canvas(args.text or ("1234" if args.layout_cycle else None),
+                                        args.icon, args.width, args.height, args.font,
+                                        args.color, args.icon_color, args.fill_height)
             pixels = wire_pixels(canvas, frame_count, args.layout, args.color,
                                  args.channel_order, args.rotate)
             print(ascii_preview(canvas))

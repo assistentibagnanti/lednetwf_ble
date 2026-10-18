@@ -2,11 +2,50 @@ import hashlib
 import json
 import unittest
 
-from matrix_assets import ASSETS, load_font, load_icons
-from matrix_canvas import content_canvas, text_canvas, wire_pixels
+from matrix_assets import ASSETS, load_font, load_icons, load_color_icons
+from matrix_canvas import content_canvas, rgb_content_canvas, text_canvas, wire_pixels
 
 
 class MatrixAssetTests(unittest.TestCase):
+    def test_full_height_numeric_font_uses_eight_rows(self):
+        face = load_font("digits3x8")
+        self.assertEqual(face.glyphs["0"], (7, 5, 5, 5, 5, 5, 5, 7))
+        self.assertEqual(face.glyphs["."][-1], 2)
+        canvas = text_canvas("12345678", font="digits3x8")
+        self.assertTrue(all(any(row) for row in canvas))
+        with self.assertRaises(ValueError):
+            text_canvas("CIAO", font="digits3x8")
+
+    def test_spleen_and_full_height_text(self):
+        self.assertEqual(load_font("spleen5x8").height, 8)
+        canvas = text_canvas("CIAO12", font="spleen5x8", fill_height=True)
+        self.assertTrue(any(canvas[0]))
+        self.assertTrue(any(canvas[-1]))
+        self.assertFalse(any(any(row) for row in text_canvas(" ", fill_height=True)))
+
+    def test_multicolor_icon_and_independent_text_survive_wire_encoding(self):
+        cyan = (0, 200, 255)
+        canvas = rgb_content_canvas("22.5°", "color-sun", font="digits3x8", text_color=cyan)
+        colors = {pixel for row in canvas for pixel in row}
+        self.assertTrue({(255, 190, 0), (255, 255, 255), cyan, (0, 0, 0)} <= colors)
+        rgb = wire_pixels(canvas, count=256, layout="columns-serpentine")
+        grb = wire_pixels(canvas, count=256, layout="columns-serpentine", channel_order="GRB")
+        self.assertEqual(grb, [(g, r, b) for r, g, b in rgb])
+        self.assertEqual(rgb[3 * 8], (255, 190, 0))
+        for image in load_color_icons().values():
+            self.assertEqual(len(image), 8)
+            self.assertTrue(all(len(row) == 8 for row in image))
+
+    def test_explicit_icon_tint_and_invalid_rgb(self):
+        canvas = rgb_content_canvas("CIAO", "color-cloud", font="spleen5x8",
+                                    text_color=(0, 255, 0), icon_color=(255, 0, 0), fill_height=True)
+        self.assertEqual({pixel for row in canvas for pixel in row[:8]}, {(0, 0, 0), (255, 0, 0)})
+        self.assertTrue(any((0, 255, 0) in row[9:] for row in canvas))
+        with self.assertRaises(ValueError):
+            rgb_content_canvas("1", text_color=(256, 0, 0))
+        with self.assertRaises(ValueError):
+            wire_pixels([[(1, 2)]])
+
     def test_vendored_sources_match_recorded_hashes(self):
         for entry in json.loads((ASSETS / "sources.json").read_text()):
             self.assertEqual(hashlib.sha256((ASSETS / entry["file"]).read_bytes()).hexdigest(),

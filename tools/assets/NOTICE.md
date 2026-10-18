@@ -35,3 +35,28 @@ Includes six weather patterns, digits, kanji digits, and diagnostic patterns.
 `rain` is the original abstract rain pattern, not a newly drawn cloud icon.
 
 The containing project's MIT license does not replace these source notices.
+
+## Spleen 5×8 — BSD-2-Clause
+
+Frédéric Cambus, https://github.com/fcambus/spleen.
+The original BDF and full license are preserved in `upstream/spleen/`.
+The 5-pixel cell includes spacing; six cells fit in a 32-pixel line.
+
+## Espruino numeric font — MIT
+
+Copyright (c) 2017 Gordon Williams, Pur3 Ltd.
+Source: https://github.com/espruino/EspruinoDocs/blob/master/modules/Font4x8Numeric.js
+Original code and license are in `upstream/EspruinoDocs/`.
+Digits have three active columns, one spacing column, and eight active rows.
+The added space, decimal point, colon, minus and degree glyphs are original
+additions under this project's MIT license.
+
+## Open Iconic silhouettes — MIT
+
+Copyright (c) 2014 Waybury, https://github.com/iconic/open-iconic.
+Native 8×8 PNGs and `ICON-LICENSE` are in `upstream/open-iconic/`.
+`open-iconic-8x8.json` records their alpha masks (threshold >127), at original
+resolution. Color cloud, rain and moon sprites use these masks with original
+RGB palettes applied by `matrix_assets.py`. The full-height yellow/white sun
+is an original sprite drawn directly in that module under the project's MIT
+license. No third-party colored artwork is represented as an original design.
