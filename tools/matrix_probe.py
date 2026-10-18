@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from matrix_smear import smear_payload, transport_packets
+from matrix_canvas import LAYOUTS, CHANNEL_ORDERS, text_canvas, wire_pixels, ascii_preview
 
 WRITE = "0000ff01-0000-1000-8000-00805f9b34fb"
 NOTIFY = "0000ff02-0000-1000-8000-00805f9b34fb"
@@ -43,6 +44,8 @@ async def apply(args, backup, payload):
               "solid_cycle": args.solid_cycle,
               "pause_mic": args.pause_mic,
               "variant": args.variant,
+              "text": args.text, "layout": args.layout, "layout_cycle": args.layout_cycle,
+              "channel_order": args.channel_order, "rotate": args.rotate,
               "events": [], "restored": False, "pixel_control_confirmed": False}
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     log_path = args.log_dir / f"matrix-probe-{stamp}.json"
@@ -109,7 +112,14 @@ async def apply(args, backup, payload):
                     save()
                     if not report["mic_pause_verified"]:
                         raise RuntimeError("Microphone pause not confirmed; aborting draw")
-                if args.solid_cycle:
+                if args.layout_cycle or args.text is not None:
+                    canvas = text_canvas(args.text or "1234", args.width, args.height)
+                    layouts = LAYOUTS if args.layout_cycle else (args.layout,)
+                    frames = [(f"{layout}: {args.text or '1234'}", smear_payload(
+                        wire_pixels(canvas, args.count, layout, args.color,
+                                    args.channel_order, args.rotate), variant=args.variant))
+                              for layout in layouts]
+                elif args.solid_cycle:
                     frames = [("all red", smear_payload([(255, 0, 0)] * args.count, variant=args.variant)),
                               ("all green", smear_payload([(0, 255, 0)] * args.count, variant=args.variant))]
                 else:
@@ -155,13 +165,32 @@ def main():
     parser.add_argument("--pause-mic", action="store_true", help="Temporarily disable the captured microphone configuration before drawing")
     parser.add_argument("--variant", choices=("legacy", "a3-zero-tail"), default="legacy",
                         help="A3 layout from upstream issue #6; unknown tail bytes explicitly tested as zero")
+    parser.add_argument("--text", help="Static text: A-Z, digits, and basic temperature/time punctuation")
+    parser.add_argument("--width", type=int, default=32)
+    parser.add_argument("--height", type=int, default=8)
+    parser.add_argument("--layout", choices=LAYOUTS, default="rows-serpentine")
+    parser.add_argument("--layout-cycle", action="store_true", help="Show the text through all four possible wire layouts")
+    parser.add_argument("--channel-order", choices=CHANNEL_ORDERS, default="RGB")
+    parser.add_argument("--color", nargs=3, type=int, default=(255, 255, 255), metavar=("R", "G", "B"))
+    parser.add_argument("--rotate", action="store_true", help="Rotate the drawing by 180 degrees in software")
     parser.add_argument("--log-dir", type=Path, default=Path.cwd())
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     if not 0 <= args.pixel < args.count or not 0.1 <= args.seconds <= 10:
         parser.error("Invalid pixel or duration")
-    pixels = [(0, 0, 0)] * args.count
-    pixels[args.pixel] = (255, 0, 0)
+    if args.solid_cycle and (args.text is not None or args.layout_cycle):
+        parser.error("Choose either text/layout test or solid colors")
+    try:
+        if args.text is not None or args.layout_cycle:
+            canvas = text_canvas(args.text or "1234", args.width, args.height)
+            pixels = wire_pixels(canvas, args.count, args.layout, args.color,
+                                 args.channel_order, args.rotate)
+            print(ascii_preview(canvas))
+        else:
+            pixels = [(0, 0, 0)] * args.count
+            pixels[args.pixel] = (255, 0, 0)
+    except ValueError as error:
+        parser.error(str(error))
     payload = smear_payload(pixels, variant=args.variant)
     packets = transport_packets(payload, 1)
     print(f"Frame: {len(payload)} bytes, {len(packets)} transport packets at 180 bytes max")
