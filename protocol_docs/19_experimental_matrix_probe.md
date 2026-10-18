@@ -1,7 +1,9 @@
 # Experimental A3 matrix probe
 
-This diagnostic investigates legacy `0x59` smear frames on an A3 controller.
-It is **not confirmed A3 support**, and is not exposed through Home Assistant.
+This diagnostic investigates `0x59` smear frames on an A3 controller.
+Uniform red/green A3 frames and restoration are now hardware verified as described
+below. Individual pixel addressing, wiring, text and image support remain
+unverified. The diagnostic is not exposed through Home Assistant.
 
 References:
 
@@ -99,9 +101,32 @@ before its checksum: two unknown bytes, mode, speed, direction. The original
 issue reports smear failing on firmware `56.00A3.2D.02,V3` while other effects
 work. This is directly relevant to the negative tests above.
 
-The tool currently implements the legacy layout, **not this A3 layout**. The
-layout mismatch is a plausible explanation, not an experimentally proven cause.
-The comment does not supply the two unknown tail values or a complete frame;
-do not silently substitute the legacy brightness/speed values. A complete A3
-capture or an independently verified implementation is still needed. No A3-layout
-commands have been transmitted as part of this research.
+The comment does not supply the two unknown tail values or a complete frame.
+The legacy layout failed in the tests above. The A3-specific layout was then
+implemented and tested as follows.
+
+## Successful A3-layout test (2026-10-18)
+
+`--variant a3-zero-tail --solid-cycle --seconds 5 --pause-mic` uses:
+
+```
+59 [total payload length, 2 bytes big endian] [RGB bytes for each position]
+00 00 01 32 00 [checksum]
+```
+
+The two undocumented fields were explicitly tested as zero. The RGB intensity
+was scaled to 20% in the RGB bytes themselves; the unknown tail fields were not
+treated as brightness. For 300 configured positions this is a 909-byte payload,
+sent in six v0 fragments with a conservative 180-byte write limit. The first
+transport header's total length equals the two-byte word following `59`.
+
+The controller changed reported mode from `0x62` to `0x24`. The user visually
+confirmed two full-panel colors for five seconds each. All microphone parameters,
+operating mode/effect and LED configuration matched the original backup after
+automatic restoration.
+
+The requested order was red, then green; the user reported green, then red. R/G
+channel order must therefore be checked, rather than silently changing hardware
+color-order settings. A uniform frame does not establish individual addressability
+or 2D wiring. Next validation: sparse patterns and the 32×8 coordinate map before
+implementing text rendering. Do not generalize this result to every A3 firmware.

@@ -1,7 +1,8 @@
 """Try one RGB smear frame and restore the captured microphone configuration.
 
 Default is an offline preview. --apply is needed for any Bluetooth access.
-This is a diagnostic, not a claim that A3 supports the legacy smear command.
+Uniform A3-layout frames have been visually confirmed on one target device.
+Individual pixel addressing and matrix wiring remain unverified.
 """
 from __future__ import annotations
 
@@ -41,6 +42,7 @@ async def apply(args, backup, payload):
               "experimental": True, "pixel": args.pixel, "frame_pixels": args.count,
               "solid_cycle": args.solid_cycle,
               "pause_mic": args.pause_mic,
+              "variant": args.variant,
               "events": [], "restored": False, "pixel_control_confirmed": False}
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     log_path = args.log_dir / f"matrix-probe-{stamp}.json"
@@ -108,8 +110,8 @@ async def apply(args, backup, payload):
                     if not report["mic_pause_verified"]:
                         raise RuntimeError("Microphone pause not confirmed; aborting draw")
                 if args.solid_cycle:
-                    frames = [("all red", smear_payload([(255, 0, 0)] * args.count)),
-                              ("all green", smear_payload([(0, 255, 0)] * args.count))]
+                    frames = [("all red", smear_payload([(255, 0, 0)] * args.count, variant=args.variant)),
+                              ("all green", smear_payload([(0, 255, 0)] * args.count, variant=args.variant))]
                 else:
                     frames = [(f"wire pixel {args.pixel} red", payload)]
                 report["states_during_probe"] = []
@@ -151,6 +153,8 @@ def main():
     parser.add_argument("--seconds", type=float, default=4)
     parser.add_argument("--solid-cycle", action="store_true", help="Try all red then all green for --seconds each, then restore")
     parser.add_argument("--pause-mic", action="store_true", help="Temporarily disable the captured microphone configuration before drawing")
+    parser.add_argument("--variant", choices=("legacy", "a3-zero-tail"), default="legacy",
+                        help="A3 layout from upstream issue #6; unknown tail bytes explicitly tested as zero")
     parser.add_argument("--log-dir", type=Path, default=Path.cwd())
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
@@ -158,14 +162,14 @@ def main():
         parser.error("Invalid pixel or duration")
     pixels = [(0, 0, 0)] * args.count
     pixels[args.pixel] = (255, 0, 0)
-    payload = smear_payload(pixels)
+    payload = smear_payload(pixels, variant=args.variant)
     packets = transport_packets(payload, 1)
     print(f"Frame: {len(payload)} bytes, {len(packets)} transport packets at 180 bytes max")
     if args.apply:
         backup = json.loads(args.backup.read_text())
         asyncio.run(apply(args, backup, payload))
     else:
-        print("Offline only. A3 pixel support unverified. Use --apply for the timed probe.")
+        print("Offline only. Individual pixel addressing and wiring unverified. Use --apply for the timed probe.")
 
 
 if __name__ == "__main__":

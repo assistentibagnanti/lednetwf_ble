@@ -5,6 +5,17 @@ from matrix_smear import pixel_index, smear_payload, transport_packets
 
 
 class MatrixTransportTests(unittest.TestCase):
+    def test_a3_layout_length_rgb_and_tail(self):
+        for count in (1, 256, 300):
+            frame = smear_payload([(255, 0, 0)] * count, variant="a3-zero-tail")
+            self.assertEqual(len(frame), 3 * count + 9)
+            self.assertEqual(int.from_bytes(frame[1:3], "big"), len(frame))
+            self.assertEqual(frame[3:6], bytes([51, 0, 0]))
+            self.assertEqual(frame[-6:-1], bytes([0, 0, 1, 50, 0]))
+            self.assertEqual(sum(frame[:-1]) & 255, frame[-1])
+            first = transport_packets(frame, 1)[0]
+            self.assertEqual(first[4:6], frame[1:3])
+
     def test_captured_state_query(self):
         self.assertEqual(transport_packets(bytes.fromhex("818a8b96"), 1),
                          [bytes.fromhex("000180000004050b818a8b96")])
