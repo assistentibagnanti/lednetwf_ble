@@ -1,0 +1,148 @@
+"""Try one RGB smear frame and restore the captured microphone configuration.
+
+Default is an offline preview. --apply is needed for any Bluetooth access.
+This is a diagnostic, not a claim that A3 supports the legacy smear command.
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+from matrix_smear import smear_payload, transport_packets
+
+WRITE = "0000ff01-0000-1000-8000-00805f9b34fb"
+NOTIFY = "0000ff02-0000-1000-8000-00805f9b34fb"
+
+
+def captured_payload(backup, name):
+    raw = bytes.fromhex(next(n["hex"] for n in backup["notifications"] if n["query"] == name))
+    payload = raw[8:]
+    if len(raw) < 9 or sum(payload[:-1]) & 255 != payload[-1]:
+        raise ValueError(f"Invalid captured checksum: {name}")
+    return payload
+
+
+async def apply(args, backup, payload):
+    from bleak import BleakClient, BleakScanner
+
+    mic = captured_payload(backup, "symp_get_mic_info")
+    state = captured_payload(backup, "state_upload")
+    config = captured_payload(backup, "get_symp_config_v2")
+    if len(mic) != 13 or mic[0] != 0x72 or state[1] != 0xA3:
+        raise ValueError("Expected an A3 backup with full microphone response")
+    restore = bytearray([0x73]) + mic[1:-1]
+    restore.append(sum(restore) & 255)
+    queue = asyncio.Queue()
+    sequence = 0
+    report = {"address": backup["address"], "backup": str(args.backup.resolve()),
+              "experimental": True, "pixel": args.pixel, "frame_pixels": args.count,
+              "events": [], "restored": False, "pixel_control_confirmed": False}
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    log_path = args.log_dir / f"matrix-probe-{stamp}.json"
+    args.log_dir.mkdir(parents=True, exist_ok=True)
+
+    def save():
+        log_path.write_text(json.dumps(report, indent=2) + "\n")
+
+    def notify(_, data):
+        report["events"].append({"rx": bytes(data).hex()})
+        save()
+        queue.put_nowait(bytes(data)[8:])
+
+    async def send(client, data, family):
+        nonlocal sequence
+        sequence = (sequence + 1) & 255
+        char = client.services.get_characteristic(WRITE)
+        limit = min(180, char.max_write_without_response_size)
+        for packet in transport_packets(data, sequence, max_write=limit, command_id=family):
+            report["events"].append({"tx": packet.hex()})
+            save()
+            await client.write_gatt_char(char, packet, response=False)
+            await asyncio.sleep(0.06)
+
+    async def query(client, raw, prefix):
+        while not queue.empty():
+            queue.get_nowait()
+        await send(client, bytes.fromhex(raw), 0x0A)
+        async with asyncio.timeout(5):
+            while True:
+                data = await queue.get()
+                if data.startswith(prefix):
+                    if sum(data[:-1]) & 255 != data[-1]:
+                        raise RuntimeError("Response checksum mismatch")
+                    return data
+
+    save()
+    try:
+        device = await BleakScanner.find_device_by_address(backup["address"], timeout=12)
+        if device is None:
+            raise RuntimeError("Device not found")
+        async with BleakClient(device, timeout=20) as client:
+            await client.start_notify(NOTIFY, notify)
+            await asyncio.sleep(0.5)
+            if await query(client, "720072", b"\x72") != mic:
+                raise RuntimeError("Microphone settings changed since backup; aborting")
+            before_state = await query(client, "818a8b96", b"\x81")
+            if before_state[:5] != state[:5]:
+                raise RuntimeError("Operating mode changed since backup; aborting")
+            if await query(client, "631221f086", b"\x00\x63") != config:
+                raise RuntimeError("LED configuration changed since backup; aborting")
+            if (config[2] << 8 | config[3]) * config[5] != args.count:
+                raise RuntimeError("Frame size must match existing LED configuration")
+            try:
+                print(f"Experimental smear: only wire pixel {args.pixel} is red for {args.seconds}s", flush=True)
+                await send(client, payload, 0x0B)
+                await asyncio.sleep(0.5)
+                report["state_during_probe"] = (await query(client, "818a8b96", b"\x81")).hex()
+                await asyncio.sleep(args.seconds)
+            finally:
+                print("Restoring original microphone configuration", flush=True)
+                # Always attempt a restore after transmission, including failed probes.
+                await send(client, restore, 0x0B)
+                await asyncio.sleep(0.5)
+                mic_after = await query(client, "720072", b"\x72")
+                state_after = await query(client, "818a8b96", b"\x81")
+                config_after = await query(client, "631221f086", b"\x00\x63")
+                report["restored"] = (mic_after == mic and state_after[:5] == state[:5]
+                                      and config_after == config)
+                save()
+                if not report["restored"]:
+                    raise RuntimeError("Restoration did not match backup; stop testing")
+                print("Original microphone, operating mode and LED settings verified", flush=True)
+            await client.stop_notify(NOTIFY)
+    except BaseException as error:
+        report["error"] = repr(error)
+        raise
+    finally:
+        save()
+        print(f"Log: {log_path}", flush=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--backup", type=Path, required=True)
+    parser.add_argument("--count", type=int, default=300, help="Existing wire capacity, not matrix area; no settings are changed")
+    parser.add_argument("--pixel", type=int, default=0)
+    parser.add_argument("--seconds", type=float, default=4)
+    parser.add_argument("--log-dir", type=Path, default=Path.cwd())
+    parser.add_argument("--apply", action="store_true")
+    args = parser.parse_args()
+    if not 0 <= args.pixel < args.count or not 0.1 <= args.seconds <= 10:
+        parser.error("Invalid pixel or duration")
+    pixels = [(0, 0, 0)] * args.count
+    pixels[args.pixel] = (255, 0, 0)
+    payload = smear_payload(pixels)
+    packets = transport_packets(payload, 1)
+    print(f"Frame: {len(payload)} bytes, {len(packets)} transport packets at 180 bytes max")
+    if args.apply:
+        backup = json.loads(args.backup.read_text())
+        asyncio.run(apply(args, backup, payload))
+    else:
+        print("Offline only. A3 pixel support unverified. Use --apply for the timed probe.")
+
+
+if __name__ == "__main__":
+    main()
